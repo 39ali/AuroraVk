@@ -254,5 +254,6 @@ int main() {
 	glfwDestroyWindow(win);
 	glfwTerminate();
 	system("pause");
+	system("pause");
 	return 0;
 }
