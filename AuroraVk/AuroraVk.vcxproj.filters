@@ -21,9 +21,6 @@
     <ClCompile Include="vendor\glfw\src\context.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="vendor\glfw\src\init.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="vendor\glfw\src\input.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -63,6 +60,9 @@
     <ClCompile Include="vendor\glfw\src\wgl_context.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="vendor\glfw\src\init.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="vendor\glfw\src\internal.h">
@@ -81,6 +81,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vendor\glfw\src\wgl_context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vendor\glfw\include\GLFW\glfw3native.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vendor\glfw\include\GLFW\glfw3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vendor\glfw\src\mappings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

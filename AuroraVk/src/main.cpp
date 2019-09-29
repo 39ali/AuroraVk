@@ -1,10 +1,10 @@
 
 #include <iostream>
-#include <GLFW\glfw3.h>
 #include <assert.h>
 #include <vulkan\vulkan.h>
+#include <GLFW\glfw3.h>
 #include <vector>
-#include <iostream>
+#include <optional>
 #define VK_CHECK(call) \
 	do {\
 		VkResult _r =call; \
@@ -103,22 +103,16 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 
 
-int main() {
-
-	int rc =glfwInit();
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	assert(rc==GLFW_TRUE );
-
+void initInstance(VkInstance& instance, VkDebugUtilsMessengerEXT& debugMessenger ) {
 
 	VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
 	appInfo.apiVersion = VK_API_VERSION_1_1;
-	
+
 	VkInstanceCreateInfo createInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	createInfo.pApplicationInfo = &appInfo;
 #ifdef _DEBUG
 
-VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 	if (checkValidationLayerSupport()) {
 		createInfo.ppEnabledLayerNames = validationLayers.data();
 		createInfo.enabledLayerCount = validationLayers.size();
@@ -134,22 +128,111 @@ VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 
 
 
-	VkInstance instance = 0;
+	
 	VK_CHECK(vkCreateInstance(&createInfo, 0, &instance));
 
-	VkDebugUtilsMessengerEXT debugMessenger;
+	
 #ifdef _DEBUG
 	VK_CHECK(CreateDebugUtilsMessengerEXT(instance, &debugCreateInfo, 0, &debugMessenger));
 #endif // _DEBUG
 
 
+}
+
+struct QueueFamilyIndex {
+	std::optional<uint32_t> graphicsFamilyIndex;
+};
+struct PhsicalDeviceInfo {
+	QueueFamilyIndex queuefamilyindex; 
+	VkPhysicalDevice phyDevice;
+};
+QueueFamilyIndex isBestDevice(VkPhysicalDevice device) {
+	uint32_t queueFamilyCount = 0;
+	QueueFamilyIndex indices;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, 0);
+	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+	uint32_t i = 0;
+	for (const auto& queueFamily : queueFamilies)
+	{
+		if (queueFamily.queueCount > 0 && queueFamily.queueFlags &VK_QUEUE_GRAPHICS_BIT) {
+			indices.graphicsFamilyIndex = i;
+			return indices;
+		}
+		i++;
+	}
+	return indices;
+}
+
+PhsicalDeviceInfo pickPhysicalDevice(VkInstance& instance) {
+
+	uint32_t deviceCount = 0;
+	vkEnumeratePhysicalDevices(instance, &deviceCount, 0);
+	assert(deviceCount);
+	std::vector<VkPhysicalDevice> devices(deviceCount);
+	vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+	int i = 0;
+	PhsicalDeviceInfo chosen;
+	for (const auto& device : devices) {
+		VkPhysicalDeviceProperties deviceprop;
+		vkGetPhysicalDeviceProperties(device, &deviceprop);
+		printf("GPU[%d]:%s Vram: %dmb\n",i, deviceprop.deviceName , deviceprop.limits.maxMemoryAllocationCount);
+		chosen.queuefamilyindex = isBestDevice(device);
+		if (chosen.queuefamilyindex.graphicsFamilyIndex.has_value()) {
+
+			chosen.phyDevice = device;
+
+		}
+		i++;
+	}
+
+	VkPhysicalDeviceProperties deviceprop;
+	vkGetPhysicalDeviceProperties(chosen.phyDevice, &deviceprop);
+	printf("chosen device: %s\n", deviceprop.deviceName);
+	return  chosen ;
+}
 
 
-	VkPhysicalDevice physicalDevices[16];
-	uint32_t physicalDeviceCount = sizeof(physicalDevices) / sizeof(physicalDevices[0]);
+void createLogicalDevice(VkInstance instance,PhsicalDeviceInfo
+& phydeviceInfo, VkDevice& device) {
 
-	VK_CHECK(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices));
+	VkDeviceQueueCreateInfo queueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+	queueCreateInfo.queueFamilyIndex = phydeviceInfo.queuefamilyindex.graphicsFamilyIndex.value();
+	queueCreateInfo.queueCount = 1;
+	float queuePriority = 1.0f;
+	queueCreateInfo.pQueuePriorities = &queuePriority;
 
+	VkPhysicalDeviceFeatures deviceFeatures = {};
+
+	VkDeviceCreateInfo deviceInfo= {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+	deviceInfo.pQueueCreateInfos = &queueCreateInfo;
+	deviceInfo.queueCreateInfoCount = 1;
+	//deviceInfo.pEnabledFeatures = &deviceFeatures;
+
+	VK_CHECK(vkCreateDevice(phydeviceInfo.phyDevice, &deviceInfo, 0, &device));
+
+}
+
+
+int main() {
+
+	int rc =glfwInit();
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	assert(rc==GLFW_TRUE );
+
+	VkInstance instance = 0;
+	VkDebugUtilsMessengerEXT debugMessenger;
+	initInstance(instance , debugMessenger);
+
+    auto deviceInfo=pickPhysicalDevice(instance);
+	VkDevice logicalDevice;
+	createLogicalDevice(instance, deviceInfo, logicalDevice);
+	VkQueue graphicsQueue;
+	vkGetDeviceQueue(logicalDevice, deviceInfo.queuefamilyindex.graphicsFamilyIndex.value(), 0, &graphicsQueue);
+
+	
+	
 	GLFWwindow* win = glfwCreateWindow(1024, 768, "vulkan!", NULL, NULL);
 	assert(win);
 
@@ -160,13 +243,16 @@ VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 		glfwPollEvents();
 	}
 
+
+
+	// clean up
+	vkDestroyDevice(logicalDevice, 0);
 	DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	vkDestroyInstance(instance, 0);
-
+	
 
 	glfwDestroyWindow(win);
 	glfwTerminate();
-	int n;
-	std::cin >> n;
+	system("pause");
 	return 0;
 }
