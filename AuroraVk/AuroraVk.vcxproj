@@ -116,6 +116,11 @@
     <ClInclude Include="vendor\glfw\src\win32_joystick.h" />
     <ClInclude Include="vendor\glfw\src\win32_platform.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\build.bat" />
+    <None Include="src\shaders\shader.frag" />
+    <None Include="src\shaders\shader.vert" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
