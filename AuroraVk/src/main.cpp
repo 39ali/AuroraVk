@@ -30,6 +30,40 @@ std::vector <const char * > deviceExtensions = {
 VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
+
+struct QueueFamilyIndices {
+	std::optional<uint32_t> graphicsFamilyIndex;
+	std::optional<uint32_t> presentFamilyIndex;
+
+	bool isReady() {
+
+		return graphicsFamilyIndex.has_value() && presentFamilyIndex.has_value();
+	}
+};
+struct PhysicalDeviceInfo {
+	QueueFamilyIndices queuefamilyindices;
+	VkPhysicalDevice phyDevice;
+};
+
+VkInstance instance = 0;
+
+VkSwapchainKHR swapChain;
+PhysicalDeviceInfo deviceInfo;
+VkDevice logicalDevice;
+VkSurfaceKHR surface;
+VkQueue graphicsQueue;
+VkQueue presentQueue;
+std::vector<VkImage> swapChainImages;
+std::vector<VkImageView> swapChainImageViews;
+std::vector<VkFramebuffer> swapChainFramebuffers;
+VkFormat swapChainImageFormat;
+VkExtent2D swapChainExtent;
+VkRenderPass renderPass;
+VkPipelineLayout pipelineLayout;
+VkPipeline graphicsPipeline;
+VkCommandPool commandPool;
+std::vector<VkCommandBuffer> commandBuffers;
+
 bool checkValidationLayerSupport() {
 	uint32_t layerCount;
 
@@ -144,15 +178,7 @@ void initInstance(VkInstance& instance, VkDebugUtilsMessengerEXT& debugMessenger
 
 }
 
-struct QueueFamilyIndices {
-	std::optional<uint32_t> graphicsFamilyIndex;
-	std::optional<uint32_t> presentFamilyIndex;
 
-	bool isReady() {
-
-		return graphicsFamilyIndex.has_value() && presentFamilyIndex.has_value();
-	}
-};
 
 
 bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
@@ -174,10 +200,7 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
 }
 
 
-struct PhsicalDeviceInfo {
-	QueueFamilyIndices queuefamilyindices;
-	VkPhysicalDevice phyDevice;
-};
+
 QueueFamilyIndices getPhysicalDeviceQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
 	uint32_t queueFamilyCount = 0;
 	QueueFamilyIndices indices;
@@ -270,7 +293,7 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
 
 }
 
-PhsicalDeviceInfo pickPhysicalDevice(VkInstance& instance, VkSurfaceKHR surface) {
+PhysicalDeviceInfo pickPhysicalDevice(VkInstance& instance, VkSurfaceKHR surface) {
 
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(instance, &deviceCount, 0);
@@ -278,7 +301,7 @@ PhsicalDeviceInfo pickPhysicalDevice(VkInstance& instance, VkSurfaceKHR surface)
 	std::vector<VkPhysicalDevice> devices(deviceCount);
 	vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 	int i = 0;
-	PhsicalDeviceInfo chosen;
+	PhysicalDeviceInfo chosen;
 	for (const auto& device : devices) {
 		VkPhysicalDeviceProperties deviceprop;
 		vkGetPhysicalDeviceProperties(device, &deviceprop);
@@ -302,7 +325,7 @@ PhsicalDeviceInfo pickPhysicalDevice(VkInstance& instance, VkSurfaceKHR surface)
 }
 
 
-void createLogicalDeviceAndQueueFamilies(VkInstance instance, PhsicalDeviceInfo
+void createLogicalDeviceAndQueueFamilies(VkInstance instance, PhysicalDeviceInfo
 	& phydeviceInfo, VkDevice& device) {
 
 
@@ -342,21 +365,6 @@ void createSurface(const VkInstance & instance, GLFWwindow* window, VkSurfaceKHR
 }
 
 
-VkInstance instance = 0;
-
-VkSwapchainKHR swapChain;
-VkDevice logicalDevice;
-VkSurfaceKHR surface;
-VkQueue graphicsQueue;
-VkQueue presentQueue;
-std::vector<VkImage> swapChainImages;
-std::vector<VkImageView> swapChainImageViews;
-std::vector<VkFramebuffer> swapChainFramebuffers;
-VkFormat swapChainImageFormat; 
-VkExtent2D swapChainExtent;
-VkRenderPass renderPass;
-VkPipelineLayout pipelineLayout;
-VkPipeline graphicsPipeline;
 
 void createImageViews() {
 
@@ -632,17 +640,81 @@ void 	createRenderPass() {
 
 void createFramebuffers() {
 	swapChainFramebuffers.resize(swapChainImageViews.size());
-	//for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-	//
-	//	VkImageView attachments[] = {
-	//	swapChainImageViews[i]
-	//	};
-	//	VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
-	//	framebufferInfo.renderPass = renderpass
+	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+	
+		VkImageView attachments[] = {
+		swapChainImageViews[i]
+		};
+		VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+		framebufferInfo.renderPass = renderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = attachments;
+		framebufferInfo.width = swapChainExtent.width;
+		framebufferInfo.height = swapChainExtent.height;
+		framebufferInfo.layers = 1;
+
+		VK_CHECK(vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
 
 
-	//
-	//}
+	
+	}
+
+}
+
+void createCommandPool() {
+	QueueFamilyIndices queueFamilyIndices = getPhysicalDeviceQueueFamilies(deviceInfo.phyDevice, surface);
+
+	VkCommandPoolCreateInfo poolInfo = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamilyIndex.value();
+
+	VK_CHECK(vkCreateCommandPool(logicalDevice, &poolInfo, nullptr, &commandPool));
+}
+
+void createCommandBuffers() {
+	commandBuffers.resize(swapChainFramebuffers.size());
+	VkCommandBufferAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+	allocInfo.commandPool = commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+	VK_CHECK(vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffers.data()));
+
+
+	for (size_t i = 0; i < commandBuffers.size(); i++) {
+		VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+		beginInfo.flags = 0;
+		beginInfo.pInheritanceInfo = nullptr;
+		VK_CHECK(vkBeginCommandBuffer(commandBuffers[i], &beginInfo));
+	
+		VkRenderPassBeginInfo  renderPassInfo = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = swapChainFramebuffers[i];
+		renderPassInfo.renderArea.offset = { 0,0 };
+		renderPassInfo.renderArea.extent = swapChainExtent;
+		VkClearValue clearColor = { 0.0f,0.0f,0.0f,1.0f };
+		renderPassInfo.clearValueCount = 1;
+		renderPassInfo.pClearValues = &clearColor;
+		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+		vkCmdEndRenderPass(commandBuffers[i]);
+		VK_CHECK(vkEndCommandBuffer(commandBuffers[i]));
+	}
+
+
+}
+
+VkSemaphore imageAvailableSemaphore; 
+VkSemaphore renderFinishedSemaphore;
+
+void createSemaphores() {
+	VkSemaphoreCreateInfo semaphoreInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+	VK_CHECK(vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphore));
+	VK_CHECK(vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphore));
+
+}
+void drawFrame() {
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(logicalDevice, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 }
 
@@ -660,7 +732,7 @@ int main() {
 	initInstance(instance, debugMessenger);
 	
 	createSurface(instance, win, surface);
-	auto deviceInfo = pickPhysicalDevice(instance, surface);
+	 deviceInfo = pickPhysicalDevice(instance, surface);
 
 	createLogicalDeviceAndQueueFamilies(instance, deviceInfo, logicalDevice);
 
@@ -672,19 +744,30 @@ int main() {
 	createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
-
-
+	createFramebuffers();
+	createCommandPool();
+	createCommandBuffers();
+	createSemaphores();
 	glfwSetKeyCallback(win, keyCallBack);
 
 	while (!glfwWindowShouldClose(win))
 	{
 		glfwPollEvents();
+		drawFrame();
 	}
 
 
 
 	// clean up
-	vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
+	
+		vkDestroySemaphore(logicalDevice, renderFinishedSemaphore, nullptr);
+		vkDestroySemaphore(logicalDevice, imageAvailableSemaphore, nullptr);
+	vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
+
+	for (auto framebuffer : swapChainFramebuffers) {
+		vkDestroyFramebuffer(logicalDevice, framebuffer, nullptr);
+	}
+	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
@@ -697,7 +780,7 @@ int main() {
 	DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 	vkDestroyInstance(instance, 0);
 
-
+	
 	glfwDestroyWindow(win);
 	glfwTerminate();
 
