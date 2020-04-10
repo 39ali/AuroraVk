@@ -11,7 +11,7 @@ add_executable(AURORAVK ${SOURCE})
 
 
 if(APPLE)
-set (_GLFW_COCOA TRUE)
+set(_GLFW_COCOA TRUE)
 add_definitions(-D_GLFW_COCOA)
 file(GLOB VULK_DLYB "$ENV{VULKAN_SDK}/lib/libvulkan.*.dylib")
 target_link_libraries(AURORAVK
@@ -20,7 +20,18 @@ target_link_libraries(AURORAVK
 "-framework CoreVideo"
 ${VULK_DLYB}
 )
+
+elseif(WIN32)
+set(_GLFW_WIN32 TRUE)
+add_definitions(-D_GLFW_WIN32)
+message("$ENV{VULKAN_SDK}")
+target_link_libraries(AURORAVK 
+$ENV{VULKAN_SDK}/Lib/vulkan-1.lib)
 endif()
+
+
+
+
 
 
 add_subdirectory(vendor/glfw/src)
