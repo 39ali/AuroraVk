@@ -9,6 +9,8 @@
 #include <optional>
 #include <set>
 #include <vector>
+#include <glm/glm.hpp>
+#include <array>
 #define _DEBUG
 #define VK_CHECK(call)        \
   do {                        \
@@ -23,10 +25,50 @@ void keyCallBack(GLFWwindow* win, int key, int scancode, int actions,
   }
 }
 
+
+struct Vertex {
+    glm::vec2 pos;
+        glm::vec3 color;
+
+        static VkVertexInputBindingDescription getbindingDescription() {
+            VkVertexInputBindingDescription desc{};
+            desc.binding = 0;
+            desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+            desc.stride = sizeof(Vertex);
+            return desc;
+        }
+        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 2> desc={};
+            desc[0].binding = 0;
+            desc[0].location = 0;
+            desc[0].offset = offsetof(Vertex, pos);
+            desc[0].format = VK_FORMAT_R32G32_SFLOAT;
+          
+            //color
+            desc[1].binding = 0;
+            desc[1].location =1;
+            desc[1].offset = offsetof(Vertex, color);
+            desc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+            
+            return desc; 
+        }
+};
+
+
+const std::vector<Vertex> vertices = {
+    {   {0.0f,-0.5},{1.0,0.0f,0.f} },
+    {{0.5f,0.5f},{0.0f,1.0f,0.f}},
+    {{-0.5f,0.5f},{0.f,0.0f,1.0f}}
+};
+
 std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation",
 
 };
+
+VkBuffer vertexBuffer;
+VkDeviceMemory vertexbufferMemory;
+
 
 std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -495,10 +537,15 @@ void createGraphicsPipeline() {
 
   VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
-  vertexInputInfo.vertexAttributeDescriptionCount = 0;
-  vertexInputInfo.vertexBindingDescriptionCount = 0;
-  vertexInputInfo.pVertexAttributeDescriptions = nullptr;
-  vertexInputInfo.pVertexBindingDescriptions = nullptr;
+
+
+  auto bindingDescription = Vertex::getbindingDescription();
+  auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
+  vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  vertexInputInfo.pVertexBindingDescriptions =&bindingDescription;
 
   VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
@@ -721,7 +768,14 @@ void createCommandBuffers() {
                          VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
                       graphicsPipeline);
-    vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+
+    //vertex buffer
+    VkBuffer vertexBuffers[] = { vertexBuffer };
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+    vkCmdDraw(commandBuffers[i], (uint32_t)vertices.size(), 1, 0, 0);
+
+//    vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);//
     vkCmdEndRenderPass(commandBuffers[i]);
     VK_CHECK(vkEndCommandBuffer(commandBuffers[i]));
   }
@@ -864,6 +918,110 @@ static void framebufferResizeCallback(GLFWwindow* window , int width , int hegih
     is_resized = true;
 }
 
+uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags proprties) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(deviceInfo.phyDevice, &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if (typeFilter & (1 << i)&&(memProperties.memoryTypes[i].propertyFlags&proprties)==proprties) {
+            return i;
+        }
+    }
+    assert(0);
+}
+
+void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags proprerties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO; 
+    bufferInfo.size = size; 
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; 
+   
+    VK_CHECK(vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, &buffer));
+
+   VkMemoryRequirements memReq; 
+   vkGetBufferMemoryRequirements(logicalDevice, buffer, &memReq);
+
+   VkMemoryAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+   allocInfo.allocationSize = memReq.size;
+   allocInfo.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, proprerties);
+
+   VK_CHECK(vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &bufferMemory));
+
+   vkBindBufferMemory(logicalDevice, buffer, bufferMemory, 0);
+
+
+}
+
+void copyBuffer(VkBuffer src,VkBuffer dst,VkDeviceSize size) {
+
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer; 
+    vkAllocateCommandBuffers(logicalDevice, &allocInfo, &commandBuffer);
+
+
+    VkCommandBufferBeginInfo info= {};
+    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &info);
+
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;
+    copyRegion.dstOffset = 0;
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, src, dst, 1,&copyRegion);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+
+    vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
+
+
+}
+
+void   createVertexBuffer() {
+
+  VkDeviceSize bufferSize= vertices.size() * sizeof(vertices[0]);
+  
+  //create staging buffer 
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMemory;
+  
+  createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+  //filling the vertex 
+  void* data;
+  vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+  memcpy(data, vertices.data(), (size_t)bufferSize);
+  vkUnmapMemory(logicalDevice, stagingBufferMemory);
+
+
+  createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,vertexBuffer,vertexbufferMemory);
+   
+  copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+  vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+  vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
+
+}
+
+
 
 int main() {
 	int rc = glfwInit();
@@ -902,6 +1060,7 @@ int main() {
   createGraphicsPipeline();
   createFramebuffers();
   createCommandPool();
+  createVertexBuffer();
   createCommandBuffers();
   createSyncObjects();
   glfwSetKeyCallback(win, keyCallBack);
@@ -913,6 +1072,9 @@ int main() {
 
   vkDeviceWaitIdle(logicalDevice);
   // clean up
+
+  vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
+  vkFreeMemory(logicalDevice, vertexbufferMemory, nullptr);
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
       vkDestroySemaphore(logicalDevice, renderFinshedSemaphores[i], nullptr);

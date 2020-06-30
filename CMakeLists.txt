@@ -31,12 +31,16 @@ endif()
 
 
 
-
-
-
+#include glfw
 add_subdirectory(vendor/glfw/src)
+
+
 target_include_directories(AURORAVK PRIVATE ${PROJECT_SOURCE_DIR}/src 
  $ENV{VULKAN_SDK}/include)
+
+#include glm
+target_include_directories( ${PROJECT_NAME}
+    PUBLIC ${PROJECT_SOURCE_DIR}/vendor/glm)
 
 
  target_link_libraries(AURORAVK
